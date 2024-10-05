@@ -1,0 +1,231 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This file contains a proof that terms in the STLC do not decrease in size
+% after substituting a term.
+%
+% The picture is that these properties about natural numbers and arithmetic
+% belong in some library. Since these are first order judgements it makes sense
+% to prove all of their properties in the empty context.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Specification "size.lf".
+
+Schema empty := ().
+
+Theorem plus-s-rhs : ctx E:empty, forall N1 N2 N3 D1,
+  {E |- D1: plus N1 N2 N3} =>
+  exists D2, {E |- D2: plus N1 (s N2) (s N3)}.
+induction on 1.
+intros.
+case H1.
+apply IH to H5.
+exists plus-s x1 (s N2) (s x3) D2. search.
+exists plus-z (s N3). search.
+
+Theorem ident-rhs : ctx E:empty, forall x1,
+  {E |- x1: nat} => exists D, {E |- D: plus x1 z x1}.
+induction on 1.
+intros.
+case H1 (keep).
+apply IH to H2.
+exists plus-s x z x D. search.
+exists plus-z z. search.
+
+Theorem plus-exist : ctx E: empty, forall N1 N2,
+  {E |- N1: nat} => {E |- N2:nat} => exists N3 D, {E |- D: plus N1 N2 N3}.
+induction on 1.
+intros.
+case H1.
+apply IH to H3 H2.
+exists s N3.
+exists plus-s x N2 N3 D.
+search.
+exists N2.
+exists plus-z N2. search.
+
+Theorem plus-comm : ctx E:empty, forall N1 N2 N3 D1,
+  {E |- D1: plus N1 N2 N3} =>
+  exists D2, {E |- D2: plus N2 N1 N3}.
+induction on 1.
+intros.
+case H1.
+apply IH to H5.
+apply plus-s-rhs to H6.
+exists D1. search.
+apply ident-rhs to H2.
+exists D. search.
+
+Theorem plus-unique : ctx E:empty, forall N1 N2 N3 N4 D1 D2,
+ {E |- D1: plus N1 N2 N3} => {E |- D2: plus N1 N2 N4} =>
+ exists D3, {E |- D3: nat-eq N3 N4}.
+induction on 1.
+intros.
+case H1.
+case H2.
+apply IH to H6 H10.
+case H11.
+exists nat-eq-refl (s x5). search.
+case H2. exists nat-eq-refl N4. search.
+
+Theorem plus-assoc : ctx E:empty, forall A B AB C ABC D1 D2,
+  {E |- D1: plus A B AB} => {E |- D2: plus AB C ABC} =>
+  exists BC D3 D4, {E |- D3: plus A BC ABC} /\ {E |- D4: plus B C BC}.
+induction on 1.
+intros.
+case H1.
+case H2.
+apply IH to H6 H10.
+case H11.
+exists BC.
+exists plus-s x1 BC x5 D1.
+exists D4.
+split. search. search.
+exists ABC.
+exists plus-z ABC.
+exists D2.
+split. search. search.
+
+% symmetrical associativity of addition
+Theorem plus-assoc-2 : ctx E:empty, forall A B C BC ABC D1 D2,
+  {E |- D1: plus A BC ABC} => {E |- D2: plus B C BC} =>
+  exists AB D3 D4, {E |- D3: plus AB C ABC} /\ {E |- D4: plus A B AB}.
+induction on 1.
+intros.
+case H1.
+apply IH to H6 H2.
+case H7.
+exists (s AB).
+exists plus-s AB C x3 D3.
+exists plus-s x1 B AB D4.
+split. search. search.
+exists B.
+exists D2. exists plus-z B.
+split. search. search.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% At this point, we see a standard library's scope ending and our development  
+% for the size proof beginning.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Schema c := (A: tm, y: size A (s z)).
+
+% The application case for our size proof requires a simple but verbose property
+% about addition.
+Theorem lemma : ctx E:empty, forall N1 N2 Nsum Ndiff1 Ndiff2 N1' N2' Nsum' D1 D2
+  D3 D4, {E |- D1: plus N1 N2 Nsum} => {E |- D2: plus Ndiff1 N1 N1'} =>
+  {E |- D3: plus Ndiff2 N2 N2'} => {E |- D4: plus N1' N2' Nsum'} =>
+  exists Ndiff D5, {E |- D5: plus Ndiff Nsum Nsum'}.
+intros.
+apply plus-comm to H3.
+apply plus-assoc to H2 H4. case H6.
+apply plus-assoc-2 to H8 H5. case H9.
+apply plus-comm to H10.
+apply plus-unique to H11 H1. case H13.
+apply plus-assoc-2 to H7 H12. case H15.
+exists AB1. exists D11. search.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% When discussing terms and their size, properties about natural numbers and
+% addition become useful to utilize. We will denote when an `apply` tactic
+% requires transport by placing a comment before them.
+%
+% In this development, all uses of transport are justified by the fact that
+% terms and their sizes cannot impact the derivability of natural numbers or
+% addition.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Theorem tm-has-size : ctx G:c, forall E,
+  {G |- E : tm} => exists D N, {G |- D: size E N}.
+induction on 1. intros.
+case H1 (keep).
+weaken H3 with size n (s z).
+apply IH to H4 with (G = G, n1:tm, n:size n1 (s z)).
+assert { G, n1:tm, n:size n1 (s z) |- N n1 n : nat }.
+prune H6.
+strengthen H6. strengthen H7.
+exists size-lam T ([x] E1 x) N D.
+exists (s N). search.
+apply IH to H2.
+apply IH to H3.
+assert { G |- N : nat }.
+assert { G |- N1 : nat }.
+% USE: empty => c
+apply plus-exist to H6 H7.
+exists size-app E1 E2 N N1 N3 D D1 D2. exists (s N3). search.
+exists size-empty. exists (s z). search.
+exists n1. exists (s z). search.
+
+Theorem size-at-least-one : ctx G:c, forall E S D,
+  {G |- D: size E S} => exists S' D', {G |- D': plus (s z) S' S}.
+intros.
+case H1 (keep).
+exists X3. exists plus-s z X3 X3 (plus-z X3). search.
+exists X. exists plus-s z X X (plus-z X). search.
+exists z. exists plus-s z z z (plus-z z). search.
+exists z. exists plus-s z z z (plus-z z). search.
+
+% Size of substitution doesn't decrease.
+Theorem size-subst : ctx G:c, forall E' E: o -> o T-size D1: o -> o -> o,
+  {G |- [x][dx] D1 x dx: {x:tm}{dx: size x (s z)} size (E x) T-size} =>
+  {G |- E' : tm} =>
+  exists D2 Sub-size NDiff D3, {G |- D2 : size (E E') Sub-size} /\
+  {G |- D3: plus NDiff T-size Sub-size}.
+induction on 1.
+intros.
+case H1 (keep).
+% app case
+  prune H6.
+  prune H5.
+  apply IH to H8 H2.
+  apply IH to H9 H2.
+  case H11. prune H13. prune H14.
+  case H12. prune H15. prune H16.
+  assert {G |- Sub-size n1 n : nat}. prune H17.
+  assert {G |- Sub-size1 n1 n : nat}. prune H18.
+  assert {G |- NDiff1 n1 n : nat}. prune H19.
+  assert {G |- NDiff n1 n : nat}. prune H20.
+  apply tm-has-size to H2. prune H21. assert { G |- N n1 n : nat }. prune H22.
+  prune H10. strengthen H10. strengthen H23.
+  % USE: empty => c
+  apply plus-exist to H17 H18.
+  assert { G |- N3 n1 n : nat }. prune H26.
+  % USE: empty => c
+  apply lemma to H24 H14 H16 H25.
+  assert { G |- Ndiff n1 n : nat  }. prune H28.
+  strengthen H23.
+  prune H27. prune H25.
+  exists size-app (E1 E') (E2 E') Sub-size Sub-size1 N3 D1 D6 D8.
+  exists s N3. exists Ndiff.
+  % USE: empty => c
+  apply plus-s-rhs to H27. prune H30.
+  exists D10. split. search. search.
+% lam
+  weaken H2 with tm. weaken H7 with size n5 (s z).
+  ctxpermute H6 to G, n3:tm, n4: size n3 (s z), n:tm, n1:size n (s z).
+  apply IH to H9 H8 with (G = G, n1:tm, n:size n1 (s z)).
+  case H10.
+  prune H11. prune H12.
+  assert {G, n1:tm, n:size n1 (s z) |- Sub-size n6 n5 n4 n3 n2 n1 n : nat}. prune H13.
+  assert {G, n1:tm, n:size n1 (s z) |- NDiff n6 n5 n4 n3 n2 n1 n : nat}. prune H14.
+  exists size-lam (E1 E') ([x] E2 E' x) Sub-size D2. exists (s Sub-size).
+  exists NDiff.
+  strengthen H12. strengthen H15.
+  % USE: empty => c
+  apply plus-s-rhs to H16. prune H17.
+  exists D1.
+  inst H3 with n = E'.
+  strengthen H18.
+  split. 
+  inst H4 with n = E'. ctxpermute H20 to G, n2: tm, n1:size E' (s z). strengthen H21.
+  assert {G |- Sub-size : nat}. 
+  search. search.
+% empty
+  exists size-empty. exists (s z). exists z. exists plus-z (s z). split. search. search.
+% var1
+  apply tm-has-size to H2. prune H3. assert {G |- N n1 n : nat}. prune H4.
+  exists D. exists N. apply size-at-least-one to H3. prune H5. assert { G |- S' n1 n : nat }. prune H6.
+  % USE: empty => c
+  apply plus-comm to H5.
+  exists S'. prune H7. exists D2. split. search. search.
+% var2
+  exists n3. exists (s z). exists z. exists plus-z (s z). split. search. search.
